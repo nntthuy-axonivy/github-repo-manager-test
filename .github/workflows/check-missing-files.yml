@@ -1,0 +1,49 @@
+name: Checking missing files
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Whether the build should really make a change or not'
+        required: true
+        default: 'true'
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+
+      - name: Create a file with TOKEN value
+        run: |
+          echo -n "${{ secrets.TOKEN }}" > token_file
+          echo "File created at: $(pwd)/token_file"
+
+      - name: Get the file path
+        id: get-file-path
+        run: echo "::set-output name=filepath::$(pwd)/token_file"
+
+      - name: Build with Maven
+        working-directory: ./github-repo-manager
+        run: mvn -f pom_check_missing_file.xml -B clean compile exec:java -DDRY_RUN="true" -"DGITHUB.TOKEN.FILE"="${{ steps.get-file-path.outputs.filepath }}" -"Dexec.mainClass"="com.axonivy.github.file.GitHubMissingFiles" -"Dexec.args"="${{ github.actor }}"
+
+      - name: Delete TOKEN file
+        run: |
+          rm token_file
+          echo "Token file deleted."
